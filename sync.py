@@ -15,6 +15,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
 from telethon.helpers import add_surrogate, del_surrogate
@@ -115,7 +116,7 @@ async def main():
         photos = [m for m in msgs if isinstance(m.media, types.MessageMediaPhoto)]
         if not item or not photos or item["price"] is None:
             continue
-        item = {"id": msgs[0].id, "date": texted.date.strftime("%Y-%m-%d"), **item, "photos": []}
+        item = {"id": msgs[0].id, "date": texted.date.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%Y-%m-%d"), **item, "photos": []}
         for m in photos:
             full, thumb = PHOTOS / f"{m.id}.jpg", PHOTOS / f"{m.id}_thumb.jpg"
             if not full.exists():
