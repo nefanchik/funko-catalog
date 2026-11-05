@@ -1,0 +1,67 @@
+name: Синхронізація каталогу
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # кожні 15 хв (GitHub інколи запускає із запізненням)
+  workflow_dispatch:          # кнопка «Run workflow» для ручного запуску
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Читаю канал
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_SESSION: ${{ secrets.TG_SESSION }}
+          TG_CHANNEL: ${{ secrets.TG_CHANNEL }}
+        run: python sync.py
+
+      - name: Зберігаю зміни
+        id: commit
+        run: |
+          git config user.name "catalog-bot"
+          git config user.email "catalog-bot@users.noreply.github.com"
+          git add -A data.js photos
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Оновлення каталогу"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Готую сайт
+        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
+        run: |
+          mkdir _site
+          cp -r index.html data.js photos _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
+        with:
+          path: _site
+
+      - uses: actions/deploy-pages@v4
+        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
