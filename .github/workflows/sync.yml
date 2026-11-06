@@ -58,7 +58,7 @@ jobs:
         id: need
         run: |
           live="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data.js"
-          if [ "${{ steps.commit.outputs.changed }}" = "true" ] || [ "${{ github.event_name }}" != "schedule" ]              || ! curl -sf "$live?t=$(date +%s)" | cmp -s - data.js; then
+          if [ "${{ steps.commit.outputs.changed }}" = "true" ] || [ "${{ github.event_name }}" = "push" ]              || ! curl -sf "$live?t=$(date +%s)" | cmp -s - data.js; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
 
