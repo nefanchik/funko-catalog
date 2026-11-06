@@ -53,17 +53,26 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Якщо минулого разу викладання на сайт зірвалось, сайт відстає від data.js — викладаємо знову
+      - name: Чи потрібно оновити сайт
+        id: need
+        run: |
+          live="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data.js"
+          if [ "${{ steps.commit.outputs.changed }}" = "true" ] || [ "${{ github.event_name }}" != "schedule" ]              || ! curl -sf "$live?t=$(date +%s)" | cmp -s - data.js; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Готую сайт
-        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
+        if: steps.need.outputs.deploy == 'true'
         run: |
           mkdir _site
           cp -r index.html data.js photos _site/
           cp logo.jpg _site/ 2>/dev/null || true
 
       - uses: actions/upload-pages-artifact@v3
-        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
+        if: steps.need.outputs.deploy == 'true'
         with:
           path: _site
 
       - uses: actions/deploy-pages@v4
-        if: steps.commit.outputs.changed == 'true' || github.event_name != 'schedule'
+        if: steps.need.outputs.deploy == 'true'
