@@ -256,8 +256,8 @@ function openLink(url) {
 }
 
 // ---------- категорії ----------
-// У рядку — лише найбільші категорії, решта у вікні «Ще»
-const TOP_CATS = 10;
+// У рядку — категорії, де щонайменше MIN_IN_ROW фігурок, решта у вікні «Ще»
+const MIN_IN_ROW = 10;
 const chipHTML = ([c, n]) => `<button class="chip${state.cat === c ? " on" : ""}" data-cat="${esc(c)}">${esc(c)}<small>${n}</small></button>`;
 function catCounts() {
   const counts = {};
@@ -266,10 +266,10 @@ function catCounts() {
 }
 function renderChips() {
   const cats = catCounts();
-  const top = cats.slice(0, TOP_CATS);
+  const top = cats.filter(([, n]) => n >= MIN_IN_ROW);
+  const rest = cats.length - top.length;
   const picked = cats.find(([c]) => c === state.cat);
   if (picked && !top.includes(picked)) top.unshift(picked);
-  const rest = cats.length - TOP_CATS;
   $("chips").innerHTML = [`<button class="chip${state.cat ? "" : " on"}" data-cat="">Усі<small>${ITEMS.length}</small></button>`]
     .concat(top.map(chipHTML))
     .concat(rest > 0 ? [`<button class="chip more-chip" data-more="1">Ще ▾<small>${rest}</small></button>`] : [])
