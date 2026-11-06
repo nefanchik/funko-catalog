@@ -97,6 +97,8 @@ async def main():
     if not await client.is_user_authorized():
         sys.exit("Сесія недійсна — запустіть login.py ще раз")
     channel = await resolve_channel(client, os.environ["TG_CHANNEL"])
+    # Аватарка каналу — логотип у шапці каталогу
+    await client.download_profile_photo(channel, file=str(HERE / "logo.jpg"), download_big=True)
 
     # Альбом = кілька повідомлень з однаковим grouped_id
     groups = {}
