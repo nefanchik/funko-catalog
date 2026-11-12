@@ -31,6 +31,8 @@
   button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 
   /* ---------- шапка ---------- */
+  /* ::before закриває смугу над шапкою, яку браузер Telegram/Safari лишає прозорою */
+  header::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 100vh; background: var(--bg); }
   header { position: sticky; top: 0; z-index: 5; background: var(--bg);
     padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
@@ -118,12 +120,38 @@
     white-space: pre-line; font-size: 14px; line-height: 1.5; }
   .d-links { display: grid; gap: 8px; margin-top: 14px; }
   .d-links button { background: var(--bg2); border-radius: 12px; padding: 12px; font-weight: 500; }
-  .buy { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  .buy { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
     background: linear-gradient(transparent, var(--bg) 30%); display: none; }
-  .detail.open ~ .buy { display: block; }
+  .buy.show { display: block; }
   .tg .buy { display: none !important; }
   .buy button { width: 100%; max-width: 640px; display: block; margin: 0 auto; background: var(--accent);
     color: var(--accent-text); border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; }
+  .brand .right { display: flex; align-items: center; gap: 10px; }
+  .cart-btn { position: relative; width: 36px; height: 36px; border-radius: 50%; background: var(--bg2);
+    display: grid; place-items: center; font-size: 18px; }
+  .cart-btn b { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; background: var(--accent); color: var(--accent-text); font-size: 11px; line-height: 18px; text-align: center; }
+  .cart-btn b:empty { display: none; }
+  .card .in-cart { position: absolute; top: 8px; right: 8px; background: var(--accent); color: var(--accent-text);
+    font-size: 12px; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; }
+  .cart-list { overflow-y: auto; padding: 0 16px 16px; }
+  :root:not(.tg) .cart-list { padding-bottom: 84px; }
+  .cart-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .cart-row img { width: 54px; height: 72px; object-fit: cover; border-radius: 10px; background: var(--bg2); flex: none; }
+  .cart-row .t { flex: 1; min-width: 0; }
+  .cart-row .t b { display: block; font-size: 14px; line-height: 1.25; }
+  .cart-row .t small { color: var(--hint); font-size: 12px; }
+  .cart-row .p { color: var(--price); font-weight: 700; white-space: nowrap; }
+  .cart-row .x { color: var(--hint); font-size: 22px; padding: 4px 6px; }
+  .cart-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 0 4px; font-size: 16px; }
+  .cart-total b { color: var(--price); font-size: 20px; }
+  .cart-sub { display: flex; justify-content: space-between; padding-top: 10px; color: var(--hint); font-size: 14px; }
+  .cart-sub.disc { color: #3fbf6f; padding-top: 4px; }
+  .cart-sub + .cart-total { padding-top: 6px; }
+  .cart-hint { background: var(--bg2); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 13px; }
+  .cart-clear { color: var(--hint); font-size: 13px; padding: 8px 0; }
+  .cart-empty { text-align: center; color: var(--hint); padding: 30px 0 40px; }
+  .d-only { color: var(--hint); font-size: 13px; text-decoration: underline; padding: 14px 0 0; display: block; margin: 0 auto; }
   .related h3 { font-size: 15px; margin: 22px 0 10px; }
   .related .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .related .card .price { font-size: 13px; }
@@ -131,7 +159,8 @@
 </head>
 <body>
 <header>
-  <div class="brand"><h1><img src="logo.jpg" alt="" onerror="this.remove()">22FunkoShop</h1><span id="count"></span></div>
+  <div class="brand"><h1><img src="logo.jpg" alt="" onerror="this.remove()">22FunkoShop</h1>
+    <div class="right"><span id="count"></span><button class="cart-btn" id="cartBtn" aria-label="Кошик">🛒<b id="cartBadge"></b></button></div></div>
   <label class="search" id="searchBox">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Пошук: ім'я, фільм або номер" autocomplete="off" enterkeyhint="search">
@@ -171,6 +200,7 @@
     <div class="d-tags" id="dTags"></div>
     <div class="d-desc" id="dDesc"></div>
     <div class="d-links" id="dLinks"></div>
+    <button class="d-only" id="buyOne">Написати продавцю лише про цю фігурку</button>
     <div class="related" id="related"></div>
   </div>
 </section>
@@ -181,7 +211,13 @@
     <div class="sheet-list" id="catList"></div>
   </div>
 </div>
-<div class="buy"><button id="buyBtn">Придбати</button></div>
+<div class="sheet" id="cartSheet" role="dialog" aria-label="Кошик">
+  <div class="sheet-box">
+    <div class="sheet-head"><b>🛒 Кошик</b><button id="cartClose" aria-label="Закрити">×</button></div>
+    <div class="cart-list" id="cartList"></div>
+  </div>
+</div>
+<div class="buy" id="buyBar"><button id="buyBtn">Придбати</button></div>
 
 <script src="data.js"></script>
 <script>
@@ -191,6 +227,14 @@ const CONFIG = {
   channel: "funko22ua",
   // Текст, який підставиться в чат з продавцем
   buyText: (it) => `Привіт! Хочу придбати ${it.name}${it.num ? " #" + it.num : ""} (${it.price} грн)`,
+  // Текст замовлення з кошика
+  cartText: (list, t) => "Привіт! Хочу придбати:\n" +
+    list.map((it, i) => `${i + 1}. ${it.name}${it.num ? " #" + it.num : ""} — ${it.price} грн`).join("\n") +
+    (t.pct ? `\n\nСума: ${t.sub} грн\nЗнижка ${t.pct}%: −${t.sub - t.total} грн` : "") +
+    `\n\nРазом: ${t.total} грн`,
+  // Знижки: [від скількох фігурок, відсоток]
+  discounts: [[5, 15], [4, 10], [3, 7], [2, 5]],
+  seller: "https://t.me/nefanchiks",
 };
 
 const CATS = {
@@ -332,6 +376,7 @@ const cardHTML = (it) => `
     <div class="ph">
       <img loading="lazy" src="${esc(it.photos[0].thumb)}" alt="" onload="this.classList.add('ok')" onerror="this.classList.add('ok')">
       ${it.num ? `<span class="num">#${esc(it.num)}</span>` : ""}
+      ${cart.includes(it.id) ? `<span class="in-cart">✓</span>` : ""}
     </div>
     <div class="info">
       <span class="series">${esc(it.series || it.cats[0] || "")}</span>
@@ -406,28 +451,126 @@ function openItem(id, push = true) {
   $("detail").scrollTop = 0;
   document.body.style.overflow = "hidden";
   if (push && !tg) history.pushState({ item: id }, "", "#item-" + id);
-  if (tg) {
-    tg.BackButton.show();
-    tg.MainButton.setParams({ text: `Придбати · ${it.price} грн`, is_visible: true });
-  } else {
-    $("buyBtn").textContent = `Придбати · ${it.price} грн`;
-  }
+  updateMain();
 }
 function closeItem(fromHistory) {
   if (!state.current) return;
   state.current = null;
   $("detail").classList.remove("open");
   document.body.style.overflow = "";
-  if (tg) { tg.BackButton.hide(); tg.MainButton.hide(); }
-  else if (!fromHistory && location.hash) history.back();
+  updateMain();
+  if (!tg && !fromHistory && location.hash) history.back();
 }
-function buy() {
+function writeSeller(url, text) {
+  openLink(url + (url.includes("?") ? "&" : "?") + "text=" + encodeURIComponent(text));
+}
+function buyOne() {
   const it = state.current;
   if (!it) return;
   haptic("medium");
-  const url = it.buy || "https://t.me/nefanchiks";
-  openLink(url + (url.includes("?") ? "&" : "?") + "text=" + encodeURIComponent(CONFIG.buyText(it)));
+  writeSeller(it.buy || CONFIG.seller, CONFIG.buyText(it));
 }
+
+// ---------- кошик ----------
+let cart = [];
+try { cart = JSON.parse(localStorage.getItem("cart") || "[]"); } catch (e) {}
+// Продані (видалені з каналу) фігурки самі зникають з кошика
+cart = cart.filter((id) => ITEMS.some((x) => x.id === id));
+let cartOpen = false;
+const cartItems = () => cart.map((id) => ITEMS.find((x) => x.id === id)).filter(Boolean);
+const pctFor = (n) => (CONFIG.discounts.find(([k]) => n >= k) || [0, 0])[1];
+function cartTotals() {
+  const list = cartItems(), sub = list.reduce((s, it) => s + it.price, 0), pct = pctFor(list.length);
+  return { n: list.length, sub, pct, total: Math.round(sub * (100 - pct) / 100) };
+}
+const cartSum = () => cartTotals().total;
+function nextDiscountHint(n) {
+  const next = CONFIG.discounts.slice().reverse().find(([k]) => k > n);
+  if (!next) return "";
+  const more = next[0] - n;
+  return `Додайте ще ${more} ${plural(more, "фігурку", "фігурки", "фігурок")} — знижка ${next[1]}%`;
+}
+function saveCart() {
+  try { localStorage.setItem("cart", JSON.stringify(cart)); } catch (e) {}
+  $("cartBadge").textContent = cart.length || "";
+  document.querySelectorAll(".card").forEach((c) => {
+    const on = cart.includes(+c.dataset.id), ph = c.querySelector(".ph"), b = ph.querySelector(".in-cart");
+    if (on && !b) ph.insertAdjacentHTML("beforeend", `<span class="in-cart">✓</span>`);
+    if (!on && b) b.remove();
+  });
+  if (cartOpen) renderCart();
+  updateMain();
+}
+function addToCart(it) {
+  if (!cart.includes(it.id)) cart.push(it.id);
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+  saveCart();
+}
+function renderCart() {
+  const list = cartItems();
+  $("cartList").innerHTML = list.length ? list.map((it) => `
+    <div class="cart-row" data-id="${it.id}">
+      <img src="${esc(it.photos[0].thumb)}" alt="">
+      <div class="t"><b>${esc(it.name)}</b><small>${esc(it.series)}${it.num ? " · #" + esc(it.num) : ""}</small></div>
+      <span class="p">${it.price} грн</span>
+      <button class="x" data-del="${it.id}" aria-label="Прибрати">×</button>
+    </div>`).join("") +
+    (() => { const t = cartTotals(), h = nextDiscountHint(t.n); return (t.pct ? `
+     <div class="cart-sub"><span>Сума</span><span>${t.sub} грн</span></div>
+     <div class="cart-sub disc"><span>Знижка ${t.pct}%</span><span>−${t.sub - t.total} грн</span></div>` : "") +
+    `<div class="cart-total"><span>Разом (${t.n} шт)</span><b>${t.total} грн</b></div>` +
+    (h ? `<div class="cart-hint">🎁 ${h}</div>` : ""); })() + `
+     <button class="cart-clear" id="cartClear">Очистити кошик</button>`
+    : `<div class="cart-empty"><b style="font-size:40px;display:block">🛒</b>Кошик порожній.<br>Додавайте фігурки кнопкою «У кошик».</div>`;
+}
+function openCart() {
+  cartOpen = true;
+  renderCart();
+  $("cartSheet").classList.add("open");
+  document.body.style.overflow = "hidden";
+  updateMain();
+}
+function closeCart() {
+  cartOpen = false;
+  $("cartSheet").classList.remove("open");
+  if (!state.current) document.body.style.overflow = "";
+  updateMain();
+}
+function order() {
+  const list = cartItems();
+  if (!list.length) return;
+  haptic("medium");
+  writeSeller(list[0].buy || CONFIG.seller, CONFIG.cartText(list, cartTotals()));
+}
+$("cartBtn").addEventListener("click", () => { haptic(); openCart(); });
+$("cartSheet").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) { haptic(); cart = cart.filter((id) => id !== +del.dataset.del); return saveCart(); }
+  if (e.target.closest("#cartClear")) { cart = []; return saveCart(); }
+  const row = e.target.closest(".cart-row");
+  if (row) { closeCart(); return openItem(+row.dataset.id); }
+  if (e.target === $("cartSheet") || e.target.closest("#cartClose")) closeCart();
+});
+
+// Головна кнопка внизу: залежить від того, що відкрито
+let mainAction = null;
+function updateMain() {
+  const it = state.current, n = cart.length;
+  let text = "";
+  if (cartOpen) { if (n) { text = `Написати продавцю · ${cartSum()} грн`; mainAction = order; } }
+  else if (it) {
+    if (cart.includes(it.id)) { text = `✓ У кошику · Відкрити кошик (${n})`; mainAction = openCart; }
+    else { text = `🛒 У кошик · ${it.price} грн`; mainAction = () => addToCart(it); }
+  } else if (n) { text = `🛒 Кошик: ${n} шт · ${cartSum()} грн`; mainAction = openCart; }
+  if (tg) {
+    if (text) tg.MainButton.setParams({ text, is_visible: true }); else tg.MainButton.hide();
+    if (cartOpen || it) tg.BackButton.show(); else tg.BackButton.hide();
+  } else {
+    $("buyBtn").textContent = text;
+    $("buyBar").classList.toggle("show", !!text);
+  }
+}
+const mainClick = () => mainAction && mainAction();
 
 $("gallery").addEventListener("scroll", () => {
   const g = $("gallery"), i = Math.round(g.scrollLeft / g.clientWidth);
@@ -439,20 +582,22 @@ $("dTags").addEventListener("click", (e) => {
 });
 $("dLinks").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) openLink(b.dataset.url); });
 $("close").addEventListener("click", () => closeItem());
-$("buyBtn").addEventListener("click", buy);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCats(); closeItem(); } });
+$("buyBtn").addEventListener("click", mainClick);
+$("buyOne").addEventListener("click", buyOne);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (cartOpen) closeCart(); else { closeCats(); closeItem(); } } });
 window.addEventListener("popstate", () => {
   const m = location.hash.match(/^#item-(\d+)$/);
   if (m) openItem(+m[1], false); else closeItem(true);
 });
 if (tg) {
-  tg.BackButton.onClick(() => closeItem());
-  tg.MainButton.onClick(buy);
+  tg.BackButton.onClick(() => (cartOpen ? closeCart() : closeItem()));
+  tg.MainButton.onClick(mainClick);
 }
 
 // ---------- старт ----------
 renderChips();
 render();
+saveCart();
 // Пряме посилання на товар: t.me/<бот>/<app>?startapp=item_3028 або сторінка#item-3028
 const start = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || location.hash.slice(1);
 const sm = start && start.match(/^item[-_](\d+)$/);
