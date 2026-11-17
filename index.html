@@ -113,6 +113,18 @@
   .detail.open { transform: none; visibility: visible; }
   .gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; background: var(--bg2); }
   .gallery::-webkit-scrollbar { display: none; }
+  .gallery img { cursor: zoom-in; }
+  .zoom { position: fixed; inset: 0; z-index: 40; background: #000; display: none; touch-action: none; user-select: none; overflow: hidden; }
+  .zoom.open { display: block; }
+  .zoom img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: 0 0; will-change: transform; }
+  .zoom .z-close { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 2; width: 40px; height: 40px;
+    border-radius: 50%; background: rgba(255,255,255,.15); color: #fff; font-size: 22px; }
+  .zoom .z-count { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
+    color: #fff; font-size: 13px; opacity: .8; z-index: 2; pointer-events: none; }
+  .zoom .z-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(255,255,255,.15); color: #fff; font-size: 24px; }
+  .zoom .z-prev { left: 10px; } .zoom .z-next { right: 10px; }
+  @media (hover: none) { .zoom .z-nav { display: none; } }
   .gallery img { flex: none; width: 100%; max-height: 70vh; aspect-ratio: 3/4; object-fit: contain; scroll-snap-align: center; }
   .dots { display: flex; justify-content: center; gap: 6px; margin-top: -22px; position: relative; height: 22px; }
   .dots i { width: 6px; height: 6px; border-radius: 50%; background: #fff; opacity: .4; }
@@ -168,6 +180,21 @@
   .pay b { font-size: 20px; line-height: 1.1; }
   .pay div { font-size: 14px; }
   .pay small { display: block; color: var(--hint); font-size: 12px; margin-top: 2px; }
+  .view-btn { flex: none; width: 36px; border-radius: 10px; background: var(--bg2); display: grid; place-items: center; }
+  .view-btn svg { opacity: .8; }
+  #grid.compact { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+  #grid.compact .card { border-radius: 12px; }
+  #grid.compact .info { padding: 6px 7px 8px; }
+  #grid.compact .series { display: none; }
+  #grid.compact .name { font-size: 11px; }
+  #grid.compact .price { font-size: 13px; margin-top: 2px; }
+  #grid.compact .num { font-size: 9px; padding: 2px 5px; top: 5px; left: 5px; }
+  #grid.compact .in-cart { width: 20px; height: 20px; line-height: 20px; font-size: 11px; top: 5px; right: 5px; }
+  #grid.compact .badges { left: 5px; bottom: 5px; }
+  #grid.compact .badges span { font-size: 9px; padding: 2px 5px; }
+  .social { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .social button { background: var(--bg2); border-radius: 12px; padding: 12px 8px; font-weight: 600; font-size: 14px; }
+  .social .wide { grid-column: 1 / -1; background: var(--accent); color: var(--accent-text); }
   .info-link { color: var(--accent); font-size: 13px; padding: 8px 0; display: block; }
   .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 50; background: rgba(0,0,0,.8);
     color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -205,7 +232,7 @@
 <body>
 <header>
   <div class="brand"><h1><img src="logo.jpg" alt="" onerror="this.remove()">22FunkoShop</h1>
-    <div class="right"><span id="count"></span><button class="cart-btn" id="infoBtn" aria-label="Оплата й доставка">ℹ️</button><button class="cart-btn" id="subBtn" aria-label="Сповіщення про новинки">🔔</button><button class="cart-btn" id="cartBtn" aria-label="Кошик">🛒<b id="cartBadge"></b></button></div></div>
+    <div class="right"><span id="count"></span><button class="cart-btn" id="infoBtn" aria-label="Про магазин">ℹ️</button><button class="cart-btn" id="subBtn" aria-label="Сповіщення про новинки">🔔</button><button class="cart-btn" id="cartBtn" aria-label="Кошик">🛒<b id="cartBadge"></b></button></div></div>
   <label class="search" id="searchBox">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Пошук: ім'я, фільм або номер" autocomplete="off" enterkeyhint="search">
@@ -226,6 +253,7 @@
       <option value="801-1500">800–1500 грн</option>
       <option value="1501-">від 1500 грн</option>
     </select>
+    <button class="view-btn" id="viewBtn" aria-label="Змінити вигляд"></button>
   </div>
 </header>
 
@@ -251,6 +279,13 @@
   </div>
 </section>
 <button class="close" id="close" aria-label="Закрити">×</button>
+<div class="zoom" id="zoom" role="dialog" aria-label="Фото">
+  <img id="zoomImg" alt="">
+  <button class="z-close" id="zoomClose" aria-label="Закрити">×</button>
+  <button class="z-nav z-prev" id="zoomPrev" aria-label="Попереднє фото">‹</button>
+  <button class="z-nav z-next" id="zoomNext" aria-label="Наступне фото">›</button>
+  <div class="z-count" id="zoomCount"></div>
+</div>
 <div class="sheet" id="catSheet" role="dialog" aria-label="Усі категорії">
   <div class="sheet-box">
     <div class="sheet-head"><b>Усі категорії</b><button id="catClose" aria-label="Закрити">×</button></div>
@@ -259,7 +294,7 @@
 </div>
 <div class="sheet" id="infoSheet" role="dialog" aria-label="Оплата й доставка">
   <div class="sheet-box">
-    <div class="sheet-head"><b>💳 Оплата й доставка</b><button id="infoClose" aria-label="Закрити">×</button></div>
+    <div class="sheet-head"><b>ℹ️ Про магазин</b><button id="infoClose" aria-label="Закрити">×</button></div>
     <div class="info-list" id="infoList"></div>
   </div>
 </div>
@@ -295,6 +330,8 @@ const CONFIG = {
   // Знижки: [від скількох фігурок, відсоток]
   discounts: [[5, 15], [4, 10], [3, 7], [2, 5]],
   seller: "https://t.me/nefanchiks",
+  reviews: "https://t.me/funko22reviews",
+  instagram: "https://www.instagram.com/funko22ua/",
   // Посилання на фігурку, яким діляться (відкриває каталог у боті одразу на ній)
   shareLink: (it) => `https://t.me/funko22ua_bot?startapp=item_${it.id}`,
   // Скільки днів фігурка вважається новинкою
@@ -344,6 +381,74 @@ const ITEMS = (window.CATALOG || []).map((it) => ({
   cats: [...new Set(it.tags.map(catOf))],
   hay: [it.name, it.series, it.num, "#" + it.num, it.desc, ...it.tags.map(catOf)].join(" ").toLowerCase(),
 }));
+
+// ---------- розумний пошук: кирилиця, помилки, «spiderman» = «Spider-Man» ----------
+// Як покупці пишуть українською (або російською) → як написано в постах
+const ALIASES = `batman:бетмен,бэтмен,батмен,бетман;spider man:людина павук,людина-павук,человек паук,человек-паук,спайдермен,спайдер мен,павук,паук;
+stitch:стіч,стич,стітч;groot:грут;hulk:халк;thor:тор;loki:локі,локи;deadpool:дедпул,дэдпул;joker:джокер;harley quinn:харлі квін,харли квин,гарлі квін;
+superman:супермен;iron man:залізна людина,железный человек,айрон мен,айронмен;captain america:капітан америка,капитан америка;venom:веном;
+avengers:месники,мстители;doctor strange:доктор стрендж,доктор стрэндж;black widow:чорна вдова,черная вдова;hawkeye:соколине око,соколиный глаз;
+wanda:ванда;vision:віжн,вижн;thanos:танос;star lord:зоряний лорд,стар лорд;rocket:ракета,єнот,енот;gamora:гамора;drax:дракс;
+black panther:чорна пантера,черная пантера;shuri:шурі;wolverine:росомаха,вулверін,вольверин;deadpool:дедпул;carnage:карнаж;gwen:гвен;miles:майлз;
+flash:флеш,флэш;aquaman:аквамен;wonder woman:чудо жінка,диво жінка,чудо женщина;green lantern:зелений ліхтар,зеленый фонарь;robin:робін;
+catwoman:жінка кішка,женщина кошка;penguin:пінгвін,пингвин;riddler:загадник;darkseid:дарксайд;black adam:чорний адам;
+harry potter:гаррі поттер,гарри поттер,гаррі,гарри,поттер;hermione:герміона,гермиона;ron:рон;dumbledore:дамблдор;voldemort:волдеморт;snape:снейп;hagrid:хагрід,хагрид;
+pikachu:пікачу,пикачу;pokemon:покемон;charizard:чарізард,чаризард;mickey:міккі,микки;minnie:мінні,минни;donald:дональд;goofy:гуфі,гуфи;
+winnie pooh:вінні пух,винни пух;simpson:сімпсон,симпсон;bart:барт;homer:гомер;spongebob:губка боб,спанч боб;patrick:патрік,патрик;
+goku:гоку;vegeta:вегета;frieza:фріза,фриза;naruto:наруто;sasuke:саске;kakashi:какаші,какаши;itachi:ітачі,итачи;luffy:луффі,луффи;zoro:зоро;
+tanjiro:танджиро,танджіро;nezuko:незуко;gojo:годжо;sukuna:сукуна;pochita:почіта,почита;denji:дензі,дендзі;makima:макіма,макима;
+vader:вейдер,вэйдер;yoda:йода;grogu:грогу;mandalorian:мандалорець,мандалорец;stormtrooper:штурмовик;chewbacca:чубакка;
+elsa:ельза,ельса,эльза;anna:анна;olaf:олаф;moana:моана,ваяна;shrek:шрек;woody:вуді,вуди;buzz:базз;nemo:немо;wall e:валл і,валли;
+eleven:одинадцять,одиннадцать;vecna:векна;gandalf:гендальф,гэндальф;frodo:фродо;gollum:голум,горлум;jon snow:джон сноу;daenerys:дейенеріс,дейенерис;
+tyrion:тиріон,тирион;ghost:гост;rider:райдер;dragon:дракон;mario:маріо,марио;sonic:сонік,соник;pennywise:пеннівайз,пеннивайз;freddy:фредді,фредди;ghostface:крик,гостфейс`
+  .split(";").flatMap((pair) => { const [en, ua] = pair.split(":"); return ua.split(",").map((k) => [k.trim(), en.trim()]); })
+  .sort((a, b) => b[0].length - a[0].length);
+const TR = { а: "a", б: "b", в: "v", г: "g", ґ: "g", д: "d", е: "e", є: "ye", ж: "zh", з: "z", и: "y", і: "i", ї: "yi", й: "y",
+  к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh",
+  щ: "shch", ь: "", ю: "yu", я: "ya", ы: "y", э: "e", ё: "e", ъ: "", "'": "", "’": "" };
+const translit = (w) => [...w].map((c) => (c in TR ? TR[c] : c)).join("");
+const compact = (s) => s.replace(/[^\p{L}\p{N}]/gu, "");
+function lev(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      best = Math.min(best, cur[j]);
+    }
+    if (best > max) return max + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+ITEMS.forEach((it) => {
+  const toks = it.hay.split(/[^\p{L}\p{N}]+/u).filter((t) => t.length > 1);
+  it.compact = compact(it.hay);
+  // слова поодинці й попарно разом: «spider» «man» «spiderman»
+  it.toks = [...new Set(toks.concat(toks.slice(1).map((t, i) => toks[i] + t)))];
+});
+function prepQuery(q) {
+  q = " " + q.toLowerCase().replace(/ё/g, "е").replace(/[-_.,!?()«»"]/g, " ") + " ";
+  for (const [k, en] of ALIASES) {
+    // ключ як окреме слово; довгі ключі — ще й з відмінками («бетмена», «стіча»)
+    const re = new RegExp(`(^|[^\\p{L}])${k.replace(/ /g, "[ ]+")}${k.length >= 4 ? "\\p{L}{0,3}" : ""}(?=$|[^\\p{L}])`, "gu");
+    q = q.replace(re, `$1${en}`);
+  }
+  return q.replace(/#/g, " #").split(/\s+/).filter(Boolean);
+}
+function wordMatch(it, w, fuzzy) {
+  if (w[0] === "#") return it.hay.includes(w) || it.hay.includes(w.slice(1));
+  if (it.hay.includes(w)) return true;
+  const c = compact(w);
+  if (c.length >= 3 && it.compact.includes(c)) return true;
+  const lat = /[а-яіїєґ]/.test(c) ? translit(c) : c;
+  if (lat !== c && lat.length >= 3 && it.compact.includes(lat)) return true;
+  if (!fuzzy || lat.length < 4 || /^\d+$/.test(lat)) return false;
+  const max = lat.length >= 6 ? 2 : 1;
+  return it.toks.some((t) => lev(lat, t, max) <= max);
+}
 const NEW_FROM = new Date(Date.now() - CONFIG.newDays * 864e5).toISOString().slice(0, 10);
 ITEMS.forEach((it) => (it.isNew = it.date >= NEW_FROM));
 const NEW_COUNT = ITEMS.filter((it) => it.isNew).length;
@@ -441,13 +546,16 @@ $("catSheet").addEventListener("click", (e) => {
 
 // ---------- фільтрація ----------
 function filtered() {
-  const words = state.q.toLowerCase().replace(/#/g, " #").split(/\s+/).filter(Boolean);
+  const words = prepQuery(state.q);
   const [lo, hi] = state.price ? state.price.split("-").map((x) => (x ? +x : null)) : [null, null];
-  let list = ITEMS.filter((it) =>
+  const pass = (fuzzy) => ITEMS.filter((it) =>
     (!state.cat || (state.cat === "@new" ? it.isNew : state.cat === "@fav" ? favs.includes(it.id) : it.cats.includes(state.cat))) &&
     (lo == null || it.price >= lo) && (hi == null || it.price <= hi) &&
-    words.every((w) => it.hay.includes(w.replace(/^#/, "")) || it.hay.includes(w))
+    words.every((w) => wordMatch(it, w, fuzzy))
   );
+  // Спершу точний пошук; якщо нічого — пробуємо з поправкою на помилки
+  let list = pass(false);
+  if (!list.length && words.length) list = pass(true);
   const by = {
     new: (a, b) => b.id - a.id,
     cheap: (a, b) => a.price - b.price || b.id - a.id,
@@ -618,6 +726,7 @@ function renderCart() {
     `<div class="cart-total"><span>Разом (${t.n} шт)</span><b>${t.total} грн</b></div>` +
     (h ? `<div class="cart-hint">🎁 ${h}</div>` : ""); })() + `
      <button class="info-link" data-info="1">💳 Способи оплати й доставки</button>
+     <button class="info-link" data-reviews="1">⭐ Відгуки покупців</button>
      <button class="cart-clear" id="cartClear">Очистити кошик</button>`
     : `<div class="cart-empty"><b style="font-size:40px;display:block">🛒</b>Кошик порожній.<br>Додавайте фігурки кнопкою «У кошик».</div>`;
 }
@@ -646,6 +755,7 @@ $("cartSheet").addEventListener("click", (e) => {
   if (del) { haptic(); cart = cart.filter((id) => id !== +del.dataset.del); return saveCart(); }
   if (e.target.closest("#cartClear")) { cart = []; return saveCart(); }
   if (e.target.closest("[data-info]")) return openInfo();
+  if (e.target.closest("[data-reviews]")) return openLink(CONFIG.reviews);
   const row = e.target.closest(".cart-row");
   if (row) { closeCart(); return openItem(+row.dataset.id); }
   if (e.target === $("cartSheet") || e.target.closest("#cartClose")) closeCart();
@@ -656,7 +766,7 @@ let mainAction = null;
 function updateMain() {
   const it = state.current, n = cart.length;
   let text = "";
-  if (infoOpen) { text = ""; }
+  if (zoomOpen || infoOpen) { text = ""; }
   else if (subOpen) { if (tg && sub) { text = "Зберегти підписку"; mainAction = saveSub; } }
   else if (cartOpen) { if (n) { text = `Написати продавцю · ${cartSum()} грн`; mainAction = order; } }
   else if (it) {
@@ -665,13 +775,130 @@ function updateMain() {
   } else if (n) { text = `🛒 Кошик: ${n} шт · ${cartSum()} грн`; mainAction = openCart; }
   if (tg) {
     if (text) tg.MainButton.setParams({ text, is_visible: true }); else tg.MainButton.hide();
-    if (infoOpen || subOpen || cartOpen || it) tg.BackButton.show(); else tg.BackButton.hide();
+    if (zoomOpen || infoOpen || subOpen || cartOpen || it) tg.BackButton.show(); else tg.BackButton.hide();
   } else {
     $("buyBtn").textContent = text;
     $("buyBar").classList.toggle("show", !!text);
   }
 }
 const mainClick = () => mainAction && mainAction();
+
+// ---------- компактний вигляд (3 в ряд) ----------
+let compactView = false;
+try { compactView = localStorage.getItem("compact") === "1"; } catch (e) {}
+const ICON_GRID3 = `<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="4" height="4" rx="1"/><rect x="7" y="1" width="4" height="4" rx="1"/><rect x="13" y="1" width="4" height="4" rx="1"/><rect x="1" y="7" width="4" height="4" rx="1"/><rect x="7" y="7" width="4" height="4" rx="1"/><rect x="13" y="7" width="4" height="4" rx="1"/><rect x="1" y="13" width="4" height="4" rx="1"/><rect x="7" y="13" width="4" height="4" rx="1"/><rect x="13" y="13" width="4" height="4" rx="1"/></svg>`;
+const ICON_GRID2 = `<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><rect x="1" y="1" width="7" height="7" rx="1.5"/><rect x="10" y="1" width="7" height="7" rx="1.5"/><rect x="1" y="10" width="7" height="7" rx="1.5"/><rect x="10" y="10" width="7" height="7" rx="1.5"/></svg>`;
+function applyView() {
+  $("grid").classList.toggle("compact", compactView);
+  $("viewBtn").innerHTML = compactView ? ICON_GRID2 : ICON_GRID3;
+  $("viewBtn").setAttribute("aria-label", compactView ? "Великі картки" : "Компактний вигляд");
+}
+$("viewBtn").addEventListener("click", () => {
+  haptic();
+  compactView = !compactView;
+  try { localStorage.setItem("compact", compactView ? "1" : "0"); } catch (e) {}
+  applyView();
+});
+applyView();
+
+// ---------- фото на весь екран зі збільшенням ----------
+let zoomOpen = false, zIdx = 0, zS = 1, zX = 0, zY = 0;
+const zPts = new Map();
+let zStart = null, zLastTap = 0, zMoved = false;
+function zApply(anim) {
+  const img = $("zoomImg");
+  img.style.transition = anim ? "transform .2s" : "none";
+  img.style.transform = `translate(${zX}px, ${zY}px) scale(${zS})`;
+}
+function zClamp() {
+  const W = innerWidth, H = innerHeight;
+  if (zS <= 1) { zS = 1; zX = 0; zY = 0; return; }
+  zX = Math.min(0, Math.max(W - W * zS, zX));
+  zY = Math.min(0, Math.max(H - H * zS, zY));
+}
+function zShow(i) {
+  const ph = state.current.photos;
+  zIdx = (i + ph.length) % ph.length;
+  zS = 1; zX = 0; zY = 0; zApply();
+  $("zoomImg").src = ph[zIdx].full;
+  $("zoomCount").textContent = ph.length > 1 ? `${zIdx + 1} / ${ph.length}` : "Збільшуйте двома пальцями або подвійним дотиком";
+  $("zoomPrev").hidden = $("zoomNext").hidden = ph.length < 2;
+}
+function openZoom(i) {
+  if (!state.current) return;
+  zoomOpen = true;
+  $("zoom").classList.add("open");
+  zShow(i);
+  updateMain();
+}
+function closeZoom() {
+  zoomOpen = false;
+  $("zoom").classList.remove("open");
+  updateMain();
+}
+function zZoomAt(x, y, k) {
+  const ns = Math.min(5, Math.max(1, zS * k));
+  zX = x - (x - zX) * (ns / zS);
+  zY = y - (y - zY) * (ns / zS);
+  zS = ns; zClamp();
+}
+$("gallery").addEventListener("click", (e) => {
+  const img = e.target.closest("img");
+  if (img) openZoom([...$("gallery").children].indexOf(img));
+});
+$("zoomClose").addEventListener("click", closeZoom);
+$("zoomPrev").addEventListener("click", () => zShow(zIdx - 1));
+$("zoomNext").addEventListener("click", () => zShow(zIdx + 1));
+const zEl = $("zoom");
+zEl.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("button")) return;
+  zEl.setPointerCapture(e.pointerId);
+  zPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  zMoved = false;
+  const p = [...zPts.values()];
+  zStart = p.length === 2
+    ? { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s: zS, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2, x: zX, y: zY }
+    : { px: e.clientX, py: e.clientY, x: zX, y: zY };
+});
+zEl.addEventListener("pointermove", (e) => {
+  if (!zPts.has(e.pointerId) || !zStart) return;
+  zPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const p = [...zPts.values()];
+  if (p.length === 2 && zStart.d) {
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    const ns = Math.min(5, Math.max(1, zStart.s * d / zStart.d));
+    const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
+    zX = cx - (zStart.cx - zStart.x) * (ns / zStart.s);
+    zY = cy - (zStart.cy - zStart.y) * (ns / zStart.s);
+    zS = ns; zClamp(); zApply(); zMoved = true;
+  } else if (p.length === 1 && zStart.px != null) {
+    const dx = e.clientX - zStart.px, dy = e.clientY - zStart.py;
+    if (Math.abs(dx) + Math.abs(dy) > 8) zMoved = true;
+    if (zS > 1) { zX = zStart.x + dx; zY = zStart.y + dy; zClamp(); zApply(); }
+    else $("zoomImg").style.transform = `translate(${dx}px, ${Math.max(0, dy)}px)`;
+  }
+});
+function zEnd(e) {
+  if (!zPts.has(e.pointerId)) return;
+  const st = zStart;
+  zPts.delete(e.pointerId);
+  if (zPts.size) { const q = [...zPts.values()][0]; zStart = { px: q.x, py: q.y, x: zX, y: zY }; return; }
+  zStart = null;
+  if (st && st.px != null && zS === 1) {
+    const dx = e.clientX - st.px, dy = e.clientY - st.py;
+    if (dy > 120 && Math.abs(dy) > Math.abs(dx)) return closeZoom();           // змахнути вниз — закрити
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) && state.current.photos.length > 1) return zShow(zIdx + (dx < 0 ? 1 : -1));
+    zApply(true);
+  }
+  if (!zMoved) {                                                                 // подвійний дотик — збільшити/зменшити
+    const now = Date.now();
+    if (now - zLastTap < 300) { if (zS > 1) { zS = 1; zX = 0; zY = 0; } else zZoomAt(e.clientX, e.clientY, 2.5); zApply(true); zLastTap = 0; }
+    else zLastTap = now;
+  }
+}
+zEl.addEventListener("pointerup", zEnd);
+zEl.addEventListener("pointercancel", zEnd);
+zEl.addEventListener("wheel", (e) => { e.preventDefault(); zZoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.2 : 1 / 1.2); zApply(); }, { passive: false });
 
 $("gallery").addEventListener("scroll", () => {
   const g = $("gallery"), i = Math.round(g.scrollLeft / g.clientWidth);
@@ -735,7 +962,12 @@ $("askBtn").addEventListener("click", () => { haptic("medium"); writeSeller(CONF
 let infoOpen = false;
 function openInfo() {
   infoOpen = true;
-  $("infoList").innerHTML = `<h4>Способи оплати й доставки</h4>` + CONFIG.payments.map(([icon, t, note], i) =>
+  $("infoList").innerHTML = `<div class="social">
+      <button class="wide" data-url="${esc(CONFIG.reviews)}">⭐ Відгуки покупців</button>
+      <button data-url="https://t.me/${esc(CONFIG.channel)}">💬 Канал</button>
+      <button data-url="${esc(CONFIG.instagram)}">📸 Instagram</button>
+    </div>
+    <h4>Способи оплати й доставки</h4>` + CONFIG.payments.map(([icon, t, note], i) =>
     `<div class="pay"><b>${icon}</b><div>${i + 1}. ${esc(t)}${note ? `<small>${esc(note)}</small>` : ""}</div></div>`).join("") +
     `<h4>Знижки</h4>` + CONFIG.discounts.slice().reverse().map(([k, pct]) =>
     `<div class="pay"><b>🎁</b><div>${k}${k === CONFIG.discounts[0][0] ? "+" : ""} ${plural(k, "фігурка", "фігурки", "фігурок")} — знижка ${pct}%</div></div>`).join("") +
@@ -753,18 +985,20 @@ function closeInfo() {
 $("infoBtn").addEventListener("click", () => { haptic(); openInfo(); });
 $("infoSheet").addEventListener("click", (e) => {
   if (e.target.closest("#infoAsk")) return openLink(CONFIG.seller);
+  const lb = e.target.closest("[data-url]");
+  if (lb) { haptic(); return openLink(lb.dataset.url); }
   if (e.target === $("infoSheet") || e.target.closest("#infoClose")) closeInfo();
 });
 $("close").addEventListener("click", () => closeItem());
 $("buyBtn").addEventListener("click", mainClick);
 $("buyOne").addEventListener("click", buyOne);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (infoOpen) closeInfo(); else if (subOpen) closeSub(); else if (cartOpen) closeCart(); else { closeCats(); closeItem(); } } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (zoomOpen) closeZoom(); else if (infoOpen) closeInfo(); else if (subOpen) closeSub(); else if (cartOpen) closeCart(); else { closeCats(); closeItem(); } } });
 window.addEventListener("popstate", () => {
   const m = location.hash.match(/^#item-(\d+)$/);
   if (m) openItem(+m[1], false); else closeItem(true);
 });
 if (tg) {
-  tg.BackButton.onClick(() => (infoOpen ? closeInfo() : subOpen ? closeSub() : cartOpen ? closeCart() : closeItem()));
+  tg.BackButton.onClick(() => (zoomOpen ? closeZoom() : infoOpen ? closeInfo() : subOpen ? closeSub() : cartOpen ? closeCart() : closeItem()));
   tg.MainButton.onClick(mainClick);
 }
 
