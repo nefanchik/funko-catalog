@@ -25,6 +25,8 @@ from telethon.tl import types
 HERE = Path(__file__).resolve().parent
 PHOTOS = HERE / "photos"
 DATA = HERE / "data.js"
+UPDATES = HERE / "updates.js"
+UPDATE_WORD = "ОНОВЛЕННЯ"  # пост про нову поставку, поки фігурки не викладені окремо
 
 
 def clean(s):
@@ -108,11 +110,20 @@ async def main():
         key = ("g", m.grouped_id) if m.grouped_id else ("m", m.id)
         groups.setdefault(key, []).append(m)
 
-    items = []
+    items, updates = [], []
     for msgs in groups.values():
         msgs.sort(key=lambda m: m.id)
         texted = next((m for m in msgs if m.message and "ПРИДБАТИ" in m.message), None)
         if not texted:
+            # Пост «ОНОВЛЕННЯ» — загальне фото нової поставки
+            upd = next((m for m in msgs if m.message and UPDATE_WORD in m.message.upper()), None)
+            pics = [m for m in msgs if isinstance(m.media, types.MessageMediaPhoto)]
+            if upd:
+                photo = PHOTOS / f"upd_{msgs[0].id}.jpg"
+                if pics and not photo.exists():
+                    await client.download_media(pics[0], file=str(photo), thumb=pick_thumb(pics[0].photo))
+                updates.append({"id": msgs[0].id, "date": upd.date.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%Y-%m-%d"),
+                                "text": upd.message.strip()[:900], "photo": f"photos/{photo.name}" if pics else ""})
             continue
         item = parse_post(texted.message, texted.entities)
         photos = [m for m in msgs if isinstance(m.media, types.MessageMediaPhoto)]
@@ -129,6 +140,7 @@ async def main():
         items.append(item)
     await client.disconnect()
     items.sort(key=lambda x: -x["id"])
+    updates.sort(key=lambda x: -x["id"])
 
     # Захист: якщо раптом прийшло набагато менше постів (збій Telegram), нічого не стираємо
     old = []
@@ -138,6 +150,7 @@ async def main():
         sys.exit(f"Отримано лише {len(items)} позицій замість {len(old)} — зупиняюсь про всяк випадок")
 
     used = {Path(p[k]).name for it in items for p in it["photos"] for k in ("full", "thumb")}
+    used |= {Path(u["photo"]).name for u in updates if u["photo"]}
     for f in PHOTOS.glob("*.jpg"):
         if f.name not in used:
             f.unlink()
@@ -145,7 +158,10 @@ async def main():
     old_ids, new_ids = {x["id"] for x in old}, {x["id"] for x in items}
     data = json.dumps(items, ensure_ascii=False, separators=(",", ":"))
     DATA.write_text(f"window.CATALOG={data};\n", encoding="utf-8")
-    print(f"Позицій: {len(items)} (нових {len(new_ids - old_ids)}, прибрано {len(old_ids - new_ids)})")
+    upd = json.dumps(updates, ensure_ascii=False, separators=(",", ":"))
+    UPDATES.write_text(f"window.UPDATES={upd};\n", encoding="utf-8")
+    print(f"Позицій: {len(items)} (нових {len(new_ids - old_ids)}, прибрано {len(old_ids - new_ids)}); "
+          f"постів «{UPDATE_WORD}»: {len(updates)}")
 
 
 if __name__ == "__main__":

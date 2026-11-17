@@ -6,6 +6,7 @@
 
 const CATALOG = "https://nefanchik.github.io/funko-catalog/";
 const ALLOWED_ORIGIN = "https://nefanchik.github.io";
+const CHANNEL = "funko22ua";
 const SEND_PER_RUN = 35; // безкоштовний Cloudflare дозволяє ~50 запитів назовні за раз
 
 export default {
@@ -87,25 +88,26 @@ const strList = (a, max) => (Array.isArray(a) ? a : [])
   .filter((x) => typeof x === "string").map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, max);
 
 async function saveSubs(env, user, s) {
-  const all = !!s.all, cats = strList(s.cats, 60), tags = strList(s.tags, 120).map((t) => t.toLowerCase());
+  const all = !!s.all, updates = !!s.updates, cats = strList(s.cats, 60), tags = strList(s.tags, 120).map((t) => t.toLowerCase());
   const words = [...new Set(strList(s.words, 30).map((w) => w.toLowerCase()))];
-  if (!all && !cats.length && !words.length) {
+  if (!all && !updates && !cats.length && !words.length) {
     await env.DB.prepare("DELETE FROM subs WHERE user_id = ?").bind(user.id).run();
     return;
   }
-  await env.DB.prepare(`INSERT INTO subs (user_id, name, all_new, cats, tags, words, updated) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, all_new = excluded.all_new, cats = excluded.cats,
+  await env.DB.prepare(`INSERT INTO subs (user_id, name, all_new, upd, cats, tags, words, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, all_new = excluded.all_new, upd = excluded.upd, cats = excluded.cats,
     tags = excluded.tags, words = excluded.words, updated = excluded.updated`)
     .bind(user.id, [user.first_name, user.username && "@" + user.username].filter(Boolean).join(" "),
-      all ? 1 : 0, JSON.stringify(cats), JSON.stringify(tags), JSON.stringify(words), Date.now()).run();
+      all ? 1 : 0, updates ? 1 : 0, JSON.stringify(cats), JSON.stringify(tags), JSON.stringify(words), Date.now()).run();
 }
 async function getSubs(env, userId) {
   const r = await env.DB.prepare("SELECT * FROM subs WHERE user_id = ?").bind(userId).first();
-  return r ? { all: !!r.all_new, cats: JSON.parse(r.cats), tags: JSON.parse(r.tags), words: JSON.parse(r.words) }
-    : { all: false, cats: [], tags: [], words: [] };
+  return r ? { all: !!r.all_new, updates: !!r.upd, cats: JSON.parse(r.cats), tags: JSON.parse(r.tags), words: JSON.parse(r.words) }
+    : { all: false, updates: false, cats: [], tags: [], words: [] };
 }
 function describe(s) {
   const parts = [];
+  if (s.updates) parts.push("• нові поставки (пости «ОНОВЛЕННЯ»)");
   if (s.all) parts.push("• усі новинки");
   if (s.cats.length) parts.push("• категорії: " + s.cats.join(", "));
   if (s.words.length) parts.push("• слова: " + s.words.join(", "));
@@ -174,6 +176,26 @@ async function tick(env) {
     for (let i = 0; i < insertSeen.length; i += 50) await env.DB.batch(insertSeen.slice(i, i + 50));
   }
 
+  // Пости «ОНОВЛЕННЯ» (нова поставка)
+  let ups = null;
+  try {
+    const r = await fetch(CATALOG + "updates.js?t=" + Date.now(), { cf: { cacheTtl: 0 } });
+    if (r.ok) ups = JSON.parse((await r.text()).trim().replace(/^window\.UPDATES=/, "").replace(/;$/, ""));
+  } catch (e) { report.updError = String(e); }
+  if (ups && ups.length) {
+    const seenU = new Set((await env.DB.prepare("SELECT id FROM seen_upd").all()).results.map((r) => r.id));
+    const freshU = ups.filter((u) => !seenU.has(u.id));
+    if (freshU.length) {
+      report.freshUpdates = freshU.length;
+      const subs = (await env.DB.prepare("SELECT user_id FROM subs WHERE upd = 1").all()).results;
+      const stmts = [];
+      for (const u of freshU.slice(0, 3)) for (const s of subs)
+        stmts.push(env.DB.prepare("INSERT INTO outbox (user_id, body) VALUES (?, ?)").bind(s.user_id, JSON.stringify({ upd: u })));
+      for (const u of freshU) stmts.push(env.DB.prepare("INSERT OR IGNORE INTO seen_upd (id) VALUES (?)").bind(u.id));
+      for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+    }
+  }
+
   const rows = (await env.DB.prepare("SELECT n, user_id, body FROM outbox ORDER BY n LIMIT ?").bind(SEND_PER_RUN).all()).results;
   for (const row of rows) {
     const status = await sendNotice(env, row.user_id, JSON.parse(row.body));
@@ -184,7 +206,17 @@ async function tick(env) {
   return report;
 }
 
+async function sendUpdate(env, chat_id, u) {
+  let text = u.text.length > 700 ? u.text.slice(0, 700).trimEnd() + "…" : u.text;
+  const caption = `📦 <b>Нова поставка фігурок!</b>\n\n${escHtml(text)}\n\n<i>Встигніть першими 👇\nВідписатися: /stop</i>`;
+  const reply_markup = { inline_keyboard: [[{ text: "👀 Дивитись пост", url: `https://t.me/${CHANNEL}/${u.id}` }]] };
+  let r = u.photo ? await tg(env, "sendPhoto", { chat_id, photo: CATALOG + u.photo, caption, parse_mode: "HTML", reply_markup }) : null;
+  if (!r || (!r.ok && r.status !== 403)) r = await tg(env, "sendMessage", { chat_id, text: caption, parse_mode: "HTML", reply_markup });
+  return r.status;
+}
+
 async function sendNotice(env, chat_id, list) {
+  if (list.upd) return sendUpdate(env, chat_id, list.upd);
   const line = (it) => `<b>${escHtml(it.name)}</b>${it.num ? " #" + escHtml(it.num) : ""} — ${it.price} грн`;
   let caption, button;
   if (list.length === 1) {

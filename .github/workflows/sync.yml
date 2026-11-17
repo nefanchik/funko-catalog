@@ -44,6 +44,7 @@ jobs:
           git config user.name "catalog-bot"
           git config user.email "catalog-bot@users.noreply.github.com"
           git add -A data.js photos
+          if [ -f updates.js ]; then git add updates.js; fi
           if [ -f logo.jpg ]; then git add logo.jpg; fi
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -68,6 +69,7 @@ jobs:
           mkdir _site
           cp -r index.html data.js photos _site/
           cp logo.jpg _site/ 2>/dev/null || true
+          cp updates.js _site/ 2>/dev/null || true
 
       - uses: actions/upload-pages-artifact@v3
         if: steps.need.outputs.deploy == 'true'

@@ -94,6 +94,12 @@
     -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
   .card .price { color: var(--price); font-weight: 700; font-size: 15px; margin-top: 4px; }
 
+  .upd-banner { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; margin-bottom: 12px;
+    background: var(--bg2); border-radius: var(--radius); padding: 10px; border: 1px solid var(--accent); }
+  .upd-banner img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex: none; }
+  .upd-banner b { display: block; font-size: 14px; }
+  .upd-banner small { color: var(--hint); font-size: 12px; }
+  .upd-banner .go { margin-left: auto; color: var(--accent); font-size: 20px; padding: 0 6px; }
   .empty { text-align: center; color: var(--hint); padding: 60px 20px; }
   .empty b { display: block; font-size: 40px; margin-bottom: 8px; }
   .more { display: block; margin: 16px auto 0; padding: 10px 18px; background: var(--bg2); border-radius: 12px; }
@@ -221,6 +227,7 @@
 </header>
 
 <main>
+  <button class="upd-banner" id="updBanner" hidden></button>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden><b>🔍</b><span id="emptyText"></span><br><button class="ask" id="askBtn" hidden>✉️ Запитати продавця</button></div>
   <button class="more" id="more" hidden>Показати ще</button>
@@ -269,6 +276,7 @@
 <div class="buy" id="buyBar"><button id="buyBtn">Придбати</button></div>
 
 <script src="data.js"></script>
+<script src="updates.js" onerror="window.UPDATES=[]"></script>
 <script>
 // ====== Налаштування ======
 const CONFIG = {
@@ -771,8 +779,8 @@ function openSub() {
     if (!subLoading) {
       subLoading = true;
       fetch(CONFIG.api + "/api/subs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ initData: tg.initData }) })
-        .then((r) => r.json()).then((d) => { sub = d.subs || { all: false, cats: [], words: [] }; })
-        .catch(() => { sub = { all: false, cats: [], words: [] }; })
+        .then((r) => r.json()).then((d) => { sub = d.subs || { all: false, updates: false, cats: [], words: [] }; })
+        .catch(() => { sub = { all: false, updates: false, cats: [], words: [] }; })
         .finally(() => { subLoading = false; if (subOpen) renderSub(); });
     }
   } else renderSub();
@@ -782,7 +790,8 @@ function renderSub() {
   const cats = catCounts().map(([c]) => c).sort((a, b) => a.localeCompare(b, "uk"));
   const chip = (on, attr, label) => `<button class="chip${on ? " on" : ""}" ${attr}>${label}</button>`;
   $("subList").innerHTML = `<p>Бот напише вам у Telegram, щойно з'явиться фігурка, яка вас цікавить.</p>
-    <div class="sub-chips">${chip(sub.all, 'data-all="1"', "🆕 Усі новинки")}</div>
+    <div class="sub-chips">${chip(sub.updates, 'data-upd="1"', "📦 Нові поставки")}${chip(sub.all, 'data-all="1"', "🆕 Усі новинки")}</div>
+    <p style="margin-top:8px;font-size:12px">📦 — коли продавець викладає загальне фото нової поставки (пост «ОНОВЛЕННЯ»). Так ви дізнаєтесь першими, ще до окремих постів.</p>
     <h4>Слова (персонаж, фільм, номер)</h4>
     <div class="sub-add"><input id="subWord" placeholder="Напр.: Stitch, Groot, Spider-Man" enterkeyhint="done"><button id="subAdd">Додати</button></div>
     <div class="sub-chips">${sub.words.map((w) => chip(true, `data-word="${esc(w)}"`, esc(w) + " ×")).join("")}</div>
@@ -808,10 +817,10 @@ function saveSub() {
   const tags = Object.keys(CATS).filter((t) => sub.cats.includes(CATS[t]))
     .concat(sub.cats.filter((c) => !Object.values(CATS).includes(c)).map((c) => c.toLowerCase()));
   const send = () => fetch(CONFIG.api + "/api/subs", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData, subs: { all: sub.all, cats: sub.cats, tags, words: sub.words } }) })
+      body: JSON.stringify({ initData: tg.initData, subs: { all: sub.all, updates: sub.updates, cats: sub.cats, tags, words: sub.words } }) })
     .then((r) => { if (!r.ok) throw 0; return r.json(); })
     .then(() => {
-      const empty = !sub.all && !sub.cats.length && !sub.words.length;
+      const empty = !sub.all && !sub.updates && !sub.cats.length && !sub.words.length;
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
       toast(empty ? "🔕 Підписку скасовано" : "✅ Підписку збережено");
       closeSub();
@@ -830,6 +839,7 @@ $("subSheet").addEventListener("click", (e) => {
   if (b.id === "subAdd") return addWord();
   haptic();
   if (b.dataset.all) sub.all = !sub.all;
+  else if (b.dataset.upd) sub.updates = !sub.updates;
   else if (b.dataset.word) sub.words = sub.words.filter((w) => w !== b.dataset.word);
   else if (b.dataset.scat) {
     const c = b.dataset.scat;
@@ -838,6 +848,16 @@ $("subSheet").addEventListener("click", (e) => {
   renderSub();
 });
 $("subSheet").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "subWord") { e.preventDefault(); addWord(); } });
+
+// ---------- банер «нова поставка» ----------
+const UPD = (window.UPDATES || [])[0];
+if (UPD) {
+  const b = $("updBanner");
+  b.innerHTML = `${UPD.photo ? `<img src="${esc(UPD.photo)}" alt="">` : ""}<span><b>📦 Нова поставка!</b>
+    <small>Фігурки ще не в каталозі — дивіться фото поставки в каналі</small></span><span class="go">›</span>`;
+  b.hidden = false;
+  b.addEventListener("click", () => { haptic(); openLink(`https://t.me/${CONFIG.channel}/${UPD.id}`); });
+}
 
 // ---------- старт ----------
 renderChips();
