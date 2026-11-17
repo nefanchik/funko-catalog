@@ -321,9 +321,9 @@ const CONFIG = {
   // @username каналу без "@" — тоді в картці з'явиться кнопка «Пост у каналі»
   channel: "funko22ua",
   // Текст, який підставиться в чат з продавцем
-  buyText: (it) => `Привіт! Хочу придбати ${it.name}${it.num ? " #" + it.num : ""} (${it.price} грн)`,
+  buyText: (it) => `Вітаю! Хочу придбати ${it.name}${it.num ? " #" + it.num : ""} (${it.price} грн)`,
   // Текст замовлення з кошика
-  cartText: (list, t) => "Привіт! Хочу придбати:\n" +
+  cartText: (list, t) => "Вітаю! Хочу придбати:\n" +
     list.map((it, i) => `${i + 1}. ${it.name}${it.num ? " #" + it.num : ""} — ${it.price} грн`).join("\n") +
     (t.pct ? `\n\nСума: ${t.sub} грн\nЗнижка ${t.pct}%: −${t.sub - t.total} грн` : "") +
     `\n\nРазом: ${t.total} грн`,
@@ -348,7 +348,7 @@ const CONFIG = {
   // Сервер бота (Cloudflare) — зберігає підписки на новинки
   api: "https://funko-bot.burunduchok-ukraine.workers.dev",
   bot: "https://t.me/funko22ua_bot?startapp",
-  askText: (q) => `Привіт! Шукаю фігурку: ${q}. Чи є у вас або можете знайти?`,
+  askText: (q) => `Вітаю! Шукаю фігурку: ${q}. Чи є у вас або можете знайти?`,
 };
 
 const CATS = {
