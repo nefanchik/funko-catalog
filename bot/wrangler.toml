@@ -1,0 +1,13 @@
+name = "funko-bot"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+# Кожні 5 хвилин перевіряти новинки й розсилати сповіщення
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "funko-bot"
+database_id = "c0a6075c-7afd-4c22-b4e8-cb85359f556d"

@@ -139,6 +139,19 @@
   .empty .ask { margin-top: 16px; background: var(--accent); color: var(--accent-text); border-radius: 12px;
     padding: 12px 18px; font-weight: 600; }
   #infoSheet { z-index: 32; }
+  #subSheet { z-index: 32; }
+  @media (max-width: 420px) { .brand #count { display: none; } }
+  .sub-list { overflow-y: auto; padding: 0 16px 20px; }
+  :root:not(.tg) .sub-list { padding-bottom: 84px; }
+  .sub-list p { color: var(--hint); font-size: 14px; margin: 0 0 12px; }
+  .sub-list h4 { margin: 16px 0 8px; font-size: 15px; }
+  .sub-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sub-add { display: flex; gap: 8px; margin-bottom: 10px; }
+  .sub-add input { flex: 1; min-width: 0; background: var(--bg2); border: 0; outline: 0; border-radius: 10px;
+    padding: 10px 12px; color: var(--text); font: inherit; }
+  .sub-add button { background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 0 14px; font-weight: 600; }
+  .sub-note { background: var(--bg2); border-radius: 12px; padding: 14px; text-align: center; }
+  .sub-note button { margin-top: 10px; background: var(--accent); color: var(--accent-text); border-radius: 12px; padding: 10px 16px; font-weight: 600; }
   .info-list { overflow-y: auto; padding: 0 16px 20px; }
   :root:not(.tg) .info-list { padding-bottom: 84px; }
   .info-list h4 { margin: 14px 0 8px; font-size: 15px; }
@@ -183,7 +196,7 @@
 <body>
 <header>
   <div class="brand"><h1><img src="logo.jpg" alt="" onerror="this.remove()">22FunkoShop</h1>
-    <div class="right"><span id="count"></span><button class="cart-btn" id="infoBtn" aria-label="Оплата й доставка">ℹ️</button><button class="cart-btn" id="cartBtn" aria-label="Кошик">🛒<b id="cartBadge"></b></button></div></div>
+    <div class="right"><span id="count"></span><button class="cart-btn" id="infoBtn" aria-label="Оплата й доставка">ℹ️</button><button class="cart-btn" id="subBtn" aria-label="Сповіщення про новинки">🔔</button><button class="cart-btn" id="cartBtn" aria-label="Кошик">🛒<b id="cartBadge"></b></button></div></div>
   <label class="search" id="searchBox">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Пошук: ім'я, фільм або номер" autocomplete="off" enterkeyhint="search">
@@ -241,6 +254,12 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="sheet" id="subSheet" role="dialog" aria-label="Сповіщення про новинки">
+  <div class="sheet-box">
+    <div class="sheet-head"><b>🔔 Сповіщення про новинки</b><button id="subClose" aria-label="Закрити">×</button></div>
+    <div class="sub-list" id="subList"></div>
+  </div>
+</div>
 <div class="sheet" id="cartSheet" role="dialog" aria-label="Кошик">
   <div class="sheet-box">
     <div class="sheet-head"><b>🛒 Кошик</b><button id="cartClose" aria-label="Закрити">×</button></div>
@@ -278,6 +297,9 @@ const CONFIG = {
     ["📍", "Самовивіз, Київ", ""],
   ],
   // Текст, коли покупець не знайшов фігурку
+  // Сервер бота (Cloudflare) — зберігає підписки на новинки
+  api: "https://funko-bot.burunduchok-ukraine.workers.dev",
+  bot: "https://t.me/funko22ua_bot?startapp",
   askText: (q) => `Привіт! Шукаю фігурку: ${q}. Чи є у вас або можете знайти?`,
 };
 
@@ -624,6 +646,7 @@ function updateMain() {
   const it = state.current, n = cart.length;
   let text = "";
   if (infoOpen) { text = ""; }
+  else if (subOpen) { if (tg && sub) { text = "Зберегти підписку"; mainAction = saveSub; } }
   else if (cartOpen) { if (n) { text = `Написати продавцю · ${cartSum()} грн`; mainAction = order; } }
   else if (it) {
     if (cart.includes(it.id)) { text = `✓ У кошику · Відкрити кошик (${n})`; mainAction = openCart; }
@@ -631,7 +654,7 @@ function updateMain() {
   } else if (n) { text = `🛒 Кошик: ${n} шт · ${cartSum()} грн`; mainAction = openCart; }
   if (tg) {
     if (text) tg.MainButton.setParams({ text, is_visible: true }); else tg.MainButton.hide();
-    if (infoOpen || cartOpen || it) tg.BackButton.show(); else tg.BackButton.hide();
+    if (infoOpen || subOpen || cartOpen || it) tg.BackButton.show(); else tg.BackButton.hide();
   } else {
     $("buyBtn").textContent = text;
     $("buyBar").classList.toggle("show", !!text);
@@ -724,22 +747,106 @@ $("infoSheet").addEventListener("click", (e) => {
 $("close").addEventListener("click", () => closeItem());
 $("buyBtn").addEventListener("click", mainClick);
 $("buyOne").addEventListener("click", buyOne);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (infoOpen) closeInfo(); else if (cartOpen) closeCart(); else { closeCats(); closeItem(); } } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (infoOpen) closeInfo(); else if (subOpen) closeSub(); else if (cartOpen) closeCart(); else { closeCats(); closeItem(); } } });
 window.addEventListener("popstate", () => {
   const m = location.hash.match(/^#item-(\d+)$/);
   if (m) openItem(+m[1], false); else closeItem(true);
 });
 if (tg) {
-  tg.BackButton.onClick(() => (infoOpen ? closeInfo() : cartOpen ? closeCart() : closeItem()));
+  tg.BackButton.onClick(() => (infoOpen ? closeInfo() : subOpen ? closeSub() : cartOpen ? closeCart() : closeItem()));
   tg.MainButton.onClick(mainClick);
 }
+
+// ---------- підписка на новинки ----------
+let subOpen = false, sub = null, subLoading = false;
+function openSub() {
+  subOpen = true;
+  $("subSheet").classList.add("open");
+  document.body.style.overflow = "hidden";
+  if (!tg || !tg.initData) {
+    $("subList").innerHTML = `<p>Бот напише вам, щойно з'явиться фігурка, яка вас цікавить.</p>
+      <div class="sub-note">Підписка працює в Telegram.<br><button id="subOpenTg">Відкрити каталог у Telegram</button></div>`;
+  } else if (!sub) {
+    $("subList").innerHTML = `<p>Завантаження…</p>`;
+    if (!subLoading) {
+      subLoading = true;
+      fetch(CONFIG.api + "/api/subs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ initData: tg.initData }) })
+        .then((r) => r.json()).then((d) => { sub = d.subs || { all: false, cats: [], words: [] }; })
+        .catch(() => { sub = { all: false, cats: [], words: [] }; })
+        .finally(() => { subLoading = false; if (subOpen) renderSub(); });
+    }
+  } else renderSub();
+  updateMain();
+}
+function renderSub() {
+  const cats = catCounts().map(([c]) => c).sort((a, b) => a.localeCompare(b, "uk"));
+  const chip = (on, attr, label) => `<button class="chip${on ? " on" : ""}" ${attr}>${label}</button>`;
+  $("subList").innerHTML = `<p>Бот напише вам у Telegram, щойно з'явиться фігурка, яка вас цікавить.</p>
+    <div class="sub-chips">${chip(sub.all, 'data-all="1"', "🆕 Усі новинки")}</div>
+    <h4>Слова (персонаж, фільм, номер)</h4>
+    <div class="sub-add"><input id="subWord" placeholder="Напр.: Stitch, Groot, Spider-Man" enterkeyhint="done"><button id="subAdd">Додати</button></div>
+    <div class="sub-chips">${sub.words.map((w) => chip(true, `data-word="${esc(w)}"`, esc(w) + " ×")).join("")}</div>
+    <h4>Категорії</h4>
+    <div class="sub-chips">${cats.map((c) => chip(sub.cats.includes(c), `data-scat="${esc(c)}"`, esc(c))).join("")}</div>`;
+}
+function addWord() {
+  const w = $("subWord").value.trim().toLowerCase().slice(0, 40);
+  if (w && !sub.words.includes(w)) sub.words.push(w);
+  renderSub();
+  updateMain();
+}
+function closeSub() {
+  subOpen = false;
+  $("subSheet").classList.remove("open");
+  if (!state.current && !cartOpen) document.body.style.overflow = "";
+  updateMain();
+}
+function saveSub() {
+  if (!sub || !tg) return;
+  const w = $("subWord") && $("subWord").value.trim();
+  if (w) addWord();
+  const tags = Object.keys(CATS).filter((t) => sub.cats.includes(CATS[t]))
+    .concat(sub.cats.filter((c) => !Object.values(CATS).includes(c)).map((c) => c.toLowerCase()));
+  const send = () => fetch(CONFIG.api + "/api/subs", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData, subs: { all: sub.all, cats: sub.cats, tags, words: sub.words } }) })
+    .then((r) => { if (!r.ok) throw 0; return r.json(); })
+    .then(() => {
+      const empty = !sub.all && !sub.cats.length && !sub.words.length;
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+      toast(empty ? "🔕 Підписку скасовано" : "✅ Підписку збережено");
+      closeSub();
+    })
+    .catch(() => toast("Не вдалося зберегти, спробуйте ще раз"));
+  // Бот може писати людині лише з її дозволу
+  if (tg.requestWriteAccess) tg.requestWriteAccess((ok) => (ok ? send() : toast("Без дозволу бот не зможе вам написати")));
+  else send();
+}
+$("subBtn").addEventListener("click", () => { haptic(); openSub(); });
+$("subSheet").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (e.target === $("subSheet") || (b && b.id === "subClose")) return closeSub();
+  if (!b) return;
+  if (b.id === "subOpenTg") return openLink(CONFIG.bot);
+  if (b.id === "subAdd") return addWord();
+  haptic();
+  if (b.dataset.all) sub.all = !sub.all;
+  else if (b.dataset.word) sub.words = sub.words.filter((w) => w !== b.dataset.word);
+  else if (b.dataset.scat) {
+    const c = b.dataset.scat;
+    sub.cats = sub.cats.includes(c) ? sub.cats.filter((x) => x !== c) : [...sub.cats, c];
+  } else return;
+  renderSub();
+});
+$("subSheet").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "subWord") { e.preventDefault(); addWord(); } });
 
 // ---------- старт ----------
 renderChips();
 render();
 saveCart();
 // Пряме посилання на товар: t.me/<бот>/<app>?startapp=item_3028 або сторінка#item-3028
-const start = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || location.hash.slice(1);
+const qs = new URLSearchParams(location.search);
+if (qs.get("view") === "new" && NEW_COUNT) setCat("@new");
+const start = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || (qs.get("item") && "item_" + qs.get("item")) || location.hash.slice(1);
 const sm = start && start.match(/^item[-_](\d+)$/);
 if (sm) openItem(+sm[1], false);
 </script>
