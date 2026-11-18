@@ -114,20 +114,18 @@ async def main():
     for msgs in groups.values():
         msgs.sort(key=lambda m: m.id)
         texted = next((m for m in msgs if m.message and "ПРИДБАТИ" in m.message), None)
-        if not texted:
-            # Пост «ОНОВЛЕННЯ» — загальне фото нової поставки
-            upd = next((m for m in msgs if m.message and UPDATE_WORD in m.message.upper()), None)
-            pics = [m for m in msgs if isinstance(m.media, types.MessageMediaPhoto)]
-            if upd:
-                photo = PHOTOS / f"upd_{msgs[0].id}.jpg"
-                if pics and not photo.exists():
-                    await client.download_media(pics[0], file=str(photo), thumb=pick_thumb(pics[0].photo))
-                updates.append({"id": msgs[0].id, "date": upd.date.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%Y-%m-%d"),
-                                "text": upd.message.strip()[:900], "photo": f"photos/{photo.name}" if pics else ""})
-            continue
-        item = parse_post(texted.message, texted.entities)
+        item = parse_post(texted.message, texted.entities) if texted else None
         photos = [m for m in msgs if isinstance(m.media, types.MessageMediaPhoto)]
         if not item or not photos or item["price"] is None:
+            # Не окрема фігурка. Можливо, це пост «ОНОВЛЕННЯ» — загальне фото нової поставки
+            # (у ньому теж буває кнопка ПРИДБАТИ, але немає ціни «… грн»)
+            upd = next((m for m in msgs if m.message and UPDATE_WORD in m.message.upper()), None)
+            if upd:
+                photo = PHOTOS / f"upd_{msgs[0].id}.jpg"
+                if photos and not photo.exists():
+                    await client.download_media(photos[0], file=str(photo), thumb=pick_thumb(photos[0].photo))
+                updates.append({"id": msgs[0].id, "date": upd.date.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%Y-%m-%d"),
+                                "text": upd.message.strip()[:900], "photo": f"photos/{photo.name}" if photos else ""})
             continue
         item = {"id": msgs[0].id, "date": texted.date.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%Y-%m-%d"), **item, "photos": []}
         for m in photos:
