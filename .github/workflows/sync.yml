@@ -76,5 +76,24 @@ jobs:
         with:
           path: _site
 
-      - uses: actions/deploy-pages@v4
+      # GitHub Pages інколи відповідає «Deployment failed, try again later» — пробуємо до трьох разів
+      - id: deploy1
+        uses: actions/deploy-pages@v4
         if: steps.need.outputs.deploy == 'true'
+        continue-on-error: true
+
+      - name: Пауза перед повтором
+        if: steps.need.outputs.deploy == 'true' && steps.deploy1.outcome == 'failure'
+        run: sleep 60
+
+      - id: deploy2
+        uses: actions/deploy-pages@v4
+        if: steps.need.outputs.deploy == 'true' && steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+
+      - name: Ще одна пауза
+        if: steps.need.outputs.deploy == 'true' && steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 120
+
+      - uses: actions/deploy-pages@v4
+        if: steps.need.outputs.deploy == 'true' && steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
