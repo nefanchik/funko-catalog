@@ -313,8 +313,12 @@
 </div>
 <div class="buy" id="buyBar"><button id="buyBtn">Придбати</button></div>
 
-<script src="data.js"></script>
-<script src="updates.js" onerror="window.UPDATES=[]"></script>
+<script>
+  // Дані каталогу завжди свіжі: браузер Telegram не підсуне стару збережену копію
+  var V = Date.now();
+  document.write('<script src="data.js?v=' + V + '"><\/script>');
+  document.write('<script src="updates.js?v=' + V + '" onerror="window.UPDATES=[]"><\/script>');
+</script>
 <script>
 // ====== Налаштування ======
 const CONFIG = {
