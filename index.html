@@ -98,6 +98,14 @@
 
   .upd-banner { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; margin-bottom: 12px;
     background: var(--bg2); border-radius: var(--radius); padding: 10px; border: 1px solid var(--accent); }
+  .price s.old, .d-price s.old, .cart-row .p s.old { color: var(--hint); font-weight: 400; font-size: .8em; margin-left: 4px; }
+  .sale-tag { background: #e5484d; color: #fff; font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 8px; vertical-align: middle; }
+  .sale-banner { background: #000; color: #fff; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,.15); }
+  .sale-banner b { font-size: 26px; font-weight: 900; letter-spacing: -.02em; }
+  .sale-banner div { font-size: 13px; line-height: 1.35; }
+  .sale-banner small { display: block; opacity: .7; font-size: 11px; margin-top: 2px; }
+  .sale-banner[hidden] { display: none; }
   .upd-banner[hidden] { display: none; }
   .upd-banner img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex: none; }
   .upd-banner b { display: block; font-size: 14px; }
@@ -258,6 +266,7 @@
 </header>
 
 <main>
+  <div class="sale-banner" id="saleBanner" hidden></div>
   <button class="upd-banner" id="updBanner" hidden></button>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden><b>🔍</b><span id="emptyText"></span><br><button class="ask" id="askBtn" hidden>✉️ Запитати продавця</button></div>
@@ -325,12 +334,18 @@ const CONFIG = {
   // @username каналу без "@" — тоді в картці з'явиться кнопка «Пост у каналі»
   channel: "funko22ua",
   // Текст, який підставиться в чат з продавцем
-  buyText: (it) => `Вітаю! Хочу придбати ${it.name}${it.num ? " #" + it.num : ""} (${it.price} грн)`,
+  buyText: (it) => `Вітаю! Хочу придбати ${it.name}${it.num ? " #" + it.num : ""} (${it.price} грн` +
+    (it.sale ? `, ${SALE.title} −${SALE.pct}%, було ${it.oldPrice} грн)` : ")"),
   // Текст замовлення з кошика
   cartText: (list, t) => "Вітаю! Хочу придбати:\n" +
-    list.map((it, i) => `${i + 1}. ${it.name}${it.num ? " #" + it.num : ""} — ${it.price} грн`).join("\n") +
-    (t.pct ? `\n\nСума: ${t.sub} грн\nЗнижка ${t.pct}%: −${t.sub - t.total} грн` : "") +
+    list.map((it, i) => `${i + 1}. ${it.name}${it.num ? " #" + it.num : ""} — ${it.price} грн${it.sale ? ` (було ${it.oldPrice})` : ""}`).join("\n") +
+    (t.saleOff || t.qtyOff ? `\n\nСума без знижок: ${t.full} грн` : "") +
+    (t.saleOff ? `\n${SALE.title} −${SALE.pct}%: −${t.saleOff} грн` : "") +
+    (t.qtyOff ? `\nЗнижка ${t.qtyPct}% за кількість: −${t.qtyOff} грн` : "") +
     `\n\nРазом: ${t.total} грн`,
+  // Акція: знижка на всі фігурки, викладені ДО поста про акцію (beforeId), у дні from…to включно.
+  // На ці фігурки знижка за кількість не додається. Щоб вимкнути акцію — постав pct: 0.
+  sale: { pct: 22, from: "2026-11-27", to: "2026-11-29", beforeId: 3194, title: "Чорна п'ятниця" },
   // Знижки: [від скількох фігурок, відсоток]
   discounts: [[5, 15], [4, 10], [3, 7], [2, 5]],
   seller: "https://t.me/nefanchiks",
@@ -385,6 +400,17 @@ const ITEMS = (window.CATALOG || []).map((it) => ({
   cats: [...new Set(it.tags.map(catOf))],
   hay: [it.name, it.series, it.num, "#" + it.num, it.desc, ...it.tags.map(catOf)].join(" ").toLowerCase(),
 }));
+
+// ---------- акція (Чорна п'ятниця тощо) ----------
+const SALE = CONFIG.sale || {};
+const KYIV_TODAY = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Kyiv" });
+SALE.on = SALE.pct > 0 && KYIV_TODAY >= SALE.from && KYIV_TODAY <= SALE.to;
+ITEMS.forEach((it) => {
+  it.oldPrice = it.price;
+  it.sale = SALE.on && it.id < SALE.beforeId;
+  if (it.sale) it.price = Math.round(it.price * (100 - SALE.pct) / 100);
+});
+const priceHTML = (it) => it.sale ? `${it.price} грн <s class="old">${it.oldPrice}</s>` : `${it.price} грн`;
 
 // ---------- розумний пошук: кирилиця, помилки, «spiderman» = «Spider-Man» ----------
 // Як покупці пишуть українською (або російською) → як написано в постах
@@ -580,7 +606,7 @@ const cardHTML = (it) => `
     <div class="info">
       <span class="series">${esc(it.series || it.cats[0] || "")}</span>
       <span class="name">${esc(it.name)}</span>
-      <span class="price">${it.price} грн</span>
+      <span class="price">${priceHTML(it)}</span>
     </div>
   </button>`;
 
@@ -638,7 +664,7 @@ function openItem(id, push = true) {
   $("dots").innerHTML = it.photos.length > 1 ? it.photos.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("") : "";
   $("dSeries").textContent = it.series;
   $("dName").textContent = it.name;
-  $("dPrice").textContent = `${it.price} грн`;
+  $("dPrice").innerHTML = priceHTML(it) + (it.sale ? ` <span class="sale-tag">−${SALE.pct}%</span>` : "");
   $("dNum").textContent = it.num ? `#${it.num}` : "";
   $("dNum").hidden = !it.num;
   $("dTags").innerHTML = it.cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("");
@@ -689,8 +715,13 @@ let cartOpen = false;
 const cartItems = () => cart.map((id) => ITEMS.find((x) => x.id === id)).filter(Boolean);
 const pctFor = (n) => (CONFIG.discounts.find(([k]) => n >= k) || [0, 0])[1];
 function cartTotals() {
-  const list = cartItems(), sub = list.reduce((s, it) => s + it.price, 0), pct = pctFor(list.length);
-  return { n: list.length, sub, pct, total: Math.round(sub * (100 - pct) / 100) };
+  // Знижка за кількість діє лише на фігурки без акційної знижки
+  const list = cartItems(), regular = list.filter((it) => !it.sale);
+  const full = list.reduce((s, it) => s + it.oldPrice, 0);
+  const saleOff = list.reduce((s, it) => s + it.oldPrice - it.price, 0);
+  const regSum = regular.reduce((s, it) => s + it.price, 0), qtyPct = pctFor(regular.length);
+  const qtyOff = regSum - Math.round(regSum * (100 - qtyPct) / 100);
+  return { n: list.length, nRegular: regular.length, full, saleOff, qtyPct, qtyOff, total: full - saleOff - qtyOff };
 }
 const cartSum = () => cartTotals().total;
 function nextDiscountHint(n) {
@@ -721,12 +752,13 @@ function renderCart() {
     <div class="cart-row" data-id="${it.id}">
       <img src="${esc(it.photos[0].thumb)}" alt="">
       <div class="t"><b>${esc(it.name)}</b><small>${esc(it.series)}${it.num ? " · #" + esc(it.num) : ""}</small></div>
-      <span class="p">${it.price} грн</span>
+      <span class="p">${priceHTML(it)}</span>
       <button class="x" data-del="${it.id}" aria-label="Прибрати">×</button>
     </div>`).join("") +
-    (() => { const t = cartTotals(), h = nextDiscountHint(t.n); return (t.pct ? `
-     <div class="cart-sub"><span>Сума</span><span>${t.sub} грн</span></div>
-     <div class="cart-sub disc"><span>Знижка ${t.pct}%</span><span>−${t.sub - t.total} грн</span></div>` : "") +
+    (() => { const t = cartTotals(), h = t.nRegular ? nextDiscountHint(t.nRegular) : ""; return (t.saleOff || t.qtyOff ? `
+     <div class="cart-sub"><span>Сума без знижок</span><span>${t.full} грн</span></div>` : "") +
+    (t.saleOff ? `<div class="cart-sub disc"><span>🖤 ${esc(SALE.title)} −${SALE.pct}%</span><span>−${t.saleOff} грн</span></div>` : "") +
+    (t.qtyOff ? `<div class="cart-sub disc"><span>Знижка ${t.qtyPct}% за кількість</span><span>−${t.qtyOff} грн</span></div>` : "") +
     `<div class="cart-total"><span>Разом (${t.n} шт)</span><b>${t.total} грн</b></div>` +
     (h ? `<div class="cart-hint">🎁 ${h}</div>` : ""); })() + `
      <button class="info-link" data-info="1">💳 Способи оплати й доставки</button>
@@ -973,7 +1005,7 @@ function openInfo() {
     </div>
     <h4>Способи оплати й доставки</h4>` + CONFIG.payments.map(([icon, t, note], i) =>
     `<div class="pay"><b>${icon}</b><div>${i + 1}. ${esc(t)}${note ? `<small>${esc(note)}</small>` : ""}</div></div>`).join("") +
-    `<h4>Знижки</h4>` + CONFIG.discounts.slice().reverse().map(([k, pct]) =>
+    `<h4>Знижки</h4>` + (SALE.on ? `<div class="pay"><b>🖤</b><div>${esc(SALE.title)}: −${SALE.pct}% на всі фігурки до ${SALE.to.split("-").reverse().slice(0, 2).join(".")}<small>Знижки за кількість на акційні фігурки не додаються</small></div></div>` : "") + CONFIG.discounts.slice().reverse().map(([k, pct]) =>
     `<div class="pay"><b>🎁</b><div>${k}${k === CONFIG.discounts[0][0] ? "+" : ""} ${plural(k, "фігурка", "фігурки", "фігурок")} — знижка ${pct}%</div></div>`).join("") +
     `<button class="info-link" id="infoAsk">✉️ Залишились питання? Написати продавцю</button>`;
   $("infoSheet").classList.add("open");
@@ -1089,6 +1121,14 @@ $("subSheet").addEventListener("click", (e) => {
   renderSub();
 });
 $("subSheet").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "subWord") { e.preventDefault(); addWord(); } });
+
+// ---------- банер акції ----------
+if (SALE.on) {
+  const [y, m, d] = SALE.to.split("-");
+  $("saleBanner").innerHTML = `<b>−${SALE.pct}%</b><div>🖤 <strong>${esc(SALE.title)}</strong> — знижка на весь асортимент до ${d}.${m} включно
+    <small>Ціни вже зі знижкою. Не діє на фігурки з нової поставки.</small></div>`;
+  $("saleBanner").hidden = false;
+}
 
 // ---------- банер «нова поставка» ----------
 const UPD = (window.UPDATES || [])[0];
